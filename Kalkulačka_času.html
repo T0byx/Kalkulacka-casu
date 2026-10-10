@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Kalkulačka času</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f3f5f4;
+      --card: #ffffff;
+      --text: #1b2421;
+      --muted: #6a7772;
+      --line: #d9dfdc;
+      --accent: #1f6f5c;
+      --accent-text: #ffffff;
+      --ok: #1e8e4e;
+      --ok-bg: #eefaf2;
+      --bad: #d33a3a;
+      --bad-bg: #fdf0f0;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 400px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 24px 20px;
+    }
+
+    h1 {
+      margin: 0 0 20px;
+      font-size: 1.25rem;
+      font-weight: 650;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      font: inherit;
+      font-size: 1.6rem;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+      padding: 12px 8px;
+      color: var(--text);
+      background: var(--bg);
+      border: 2px solid var(--line);
+      border-radius: 10px;
+      outline: none;
+    }
+
+    input[type="text"]:focus {
+      border-color: var(--accent);
+    }
+
+    input[type="text"].valid {
+      border-color: var(--ok);
+      background: var(--ok-bg);
+    }
+
+    input[type="text"].invalid {
+      border-color: var(--bad);
+      background: var(--bad-bg);
+    }
+
+    .error {
+      min-height: 1.3em;
+      margin-top: 8px;
+      font-size: 0.85rem;
+      color: var(--bad);
+    }
+
+    .result {
+      margin-top: 10px;
+      padding: 18px 12px;
+      text-align: center;
+      border-top: 1px solid var(--line);
+    }
+
+    .result .label {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin: 0;
+    }
+
+    .result .total {
+      margin-top: 4px;
+      font-size: 3.6rem;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      line-height: 1.1;
+      color: var(--accent);
+    }
+
+    .result .extra {
+      margin-top: 8px;
+      min-height: 1.3em;
+      font-size: 1rem;
+      color: var(--muted);
+    }
+
+    button {
+      width: 100%;
+      margin-top: 8px;
+      padding: 14px;
+      font: inherit;
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--accent-text);
+      background: var(--accent);
+      border: 0;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+
+    button:active { transform: scale(0.98); }
+    button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>Kalkulačka času</h1>
+
+    <div class="row">
+      <div>
+        <label for="start">Začátek</label>
+        <input type="text" id="start" inputmode="numeric" maxlength="5"
+               placeholder="08:00" autocomplete="off" enterkeyhint="next">
+      </div>
+      <div>
+        <label for="end">Konec</label>
+        <input type="text" id="end" inputmode="numeric" maxlength="5"
+               placeholder="16:30" autocomplete="off" enterkeyhint="done">
+      </div>
+    </div>
+
+    <div class="error" id="error" role="alert"></div>
+
+    <div class="result" aria-live="polite">
+      <p class="label">Celkem minut</p>
+      <div class="total" id="total">–</div>
+      <div class="extra" id="extra"></div>
+    </div>
+
+    <button type="button" id="reset">Reset</button>
+  </main>
+
+  <script>
+    const startEl = document.getElementById('start');
+    const endEl = document.getElementById('end');
+    const totalEl = document.getElementById('total');
+    const extraEl = document.getElementById('extra');
+    const errorEl = document.getElementById('error');
+
+    // Stav zadané hodnoty: 'empty' | 'partial' | 'valid' | 'invalid'
+    function getState(digits) {
+      const n = digits.length;
+      if (n === 0) return 'empty';
+      if (n >= 2 && Number(digits.slice(0, 2)) > 23) return 'invalid';
+      if (n >= 3 && Number(digits[2]) > 5) return 'invalid';
+      return n === 4 ? 'valid' : 'partial';
+    }
+
+    // Z textu vyrobí HH:MM, dvojtečku doplní sám
+    function formatInput(el, isDelete) {
+      let digits = el.value.replace(/\D/g, '').slice(0, 4);
+
+      // 8 -> 08: (hodina nemůže začínat 3–9)
+      if (!isDelete && digits.length === 1 && Number(digits) > 2) {
+        digits = '0' + digits;
+      }
+
+      let text = digits;
+      if (digits.length > 2 || (digits.length === 2 && !isDelete)) {
+        text = digits.slice(0, 2) + ':' + digits.slice(2);
+      }
+      el.value = text;
+      return digits;
+    }
+
+    function toMinutes(digits) {
+      return Number(digits.slice(0, 2)) * 60 + Number(digits.slice(2));
+    }
+
+    function setClass(el, state) {
+      el.classList.toggle('valid', state === 'valid');
+      el.classList.toggle('invalid', state === 'invalid');
+    }
+
+    function update(isDelete, jumpTo) {
+      const sDigits = startEl.value.replace(/\D/g, '');
+      const eDigits = endEl.value.replace(/\D/g, '');
+      const sState = getState(sDigits);
+      const eState = getState(eDigits);
+
+      setClass(startEl, sState);
+      setClass(endEl, eState);
+
+      // Chybová hláška
+      const bad = [];
+      if (sState === 'invalid') bad.push('začátek');
+      if (eState === 'invalid') bad.push('konec');
+      errorEl.textContent = bad.length
+        ? 'Oprav ' + bad.join(' i ') + ' – formát HH:MM (např. 08:30)'
+        : '';
+
+      // Výsledek
+      if (sState === 'valid' && eState === 'valid') {
+        let diff = toMinutes(eDigits) - toMinutes(sDigits);
+        let overnight = false;
+        if (diff < 0) { diff += 24 * 60; overnight = true; }
+
+        totalEl.textContent = diff + ' min';
+        extraEl.textContent =
+          Math.floor(diff / 60) + ' h ' + (diff % 60) + ' min · ' +
+          (diff / 60).toFixed(2).replace('.', ',') + ' h' +
+          (overnight ? ' · přes půlnoc' : '');
+      } else {
+        totalEl.textContent = '–';
+        extraEl.textContent = '';
+      }
+
+      // Přeskok na konec jen když je začátek platný
+      if (jumpTo && !isDelete) jumpTo.focus();
+    }
+
+    function onInput(e) {
+      const isDelete = (e.inputType || '').startsWith('delete');
+      const el = e.target;
+      const digits = formatInput(el, isDelete);
+      const jump = (el === startEl && getState(digits) === 'valid') ? endEl : null;
+      update(isDelete, jump);
+    }
+
+    startEl.addEventListener('input', onInput);
+    endEl.addEventListener('input', onInput);
+
+    // Enter u začátku -> přeskočí na konec (pokud je platný)
+    startEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && getState(startEl.value.replace(/\D/g, '')) === 'valid') {
+        endEl.focus();
+      }
+    });
+
+    document.getElementById('reset').addEventListener('click', () => {
+      startEl.value = '';
+      endEl.value = '';
+      update(true, null);
+      startEl.focus();
+    });
+  </script>
+</body>
+</html>
