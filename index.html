@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
-  <title>Kalkulačka času </title>
+  <title>Kalkulačka času</title>
   <style>
     :root {
       color-scheme: light;
@@ -258,6 +258,11 @@
       const digits = formatInput(el, isDelete);
       const jump = (el === startEl && getState(digits) === 'valid') ? endEl : null;
       update(isDelete, jump);
+
+      // Platný konec -> schová klávesnici
+      if (el === endEl && !isDelete && getState(digits) === 'valid') {
+        endEl.blur();
+      }
     }
 
     startEl.addEventListener('input', onInput);
